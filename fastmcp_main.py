@@ -66,12 +66,12 @@ class Message(BaseModel):
     role: str = Field(..., description="Role of the message (user or assistant).")
     content: str = Field(..., description="Message content.")
 
-@mcp.tool()
-def configure_mem0(config: Dict[str, Any]) -> str:
-    """Set memory configuration."""
-    global MEMORY_INSTANCE
-    MEMORY_INSTANCE = Memory.from_config(config)
-    return "Configuration set successfully"
+# @mcp.tool()
+# def configure_mem0(config: Dict[str, Any]) -> str:
+#     """Set memory configuration."""
+#     global MEMORY_INSTANCE
+#     MEMORY_INSTANCE = Memory.from_config(config)
+#     return "Configuration set successfully"
 
 @mcp.tool()
 def add_memory(
@@ -85,6 +85,17 @@ def add_memory(
     prompt: Optional[str] = Field(None, description="Custom prompt to use for fact extraction.")
 ) -> Any:
     """Store new memories."""
+    logging.debug("trying to add memory with params: %s", {
+        "user_id": user_id,
+        "agent_id": agent_id,
+        "run_id": run_id,
+        "metadata": metadata,
+        "infer": infer,
+        "memory_type": memory_type,
+        "prompt": prompt,
+        "messages": [m.model_dump() for m in messages]    
+    })
+
     if run_id is None:
         run_id = f"run_{user_id}_{agent_id}_{int(time.time())}"
 
@@ -116,6 +127,12 @@ def get_all_memories(
     """Retrieve stored memories."""
     if run_id is None:
         run_id = f"run_{user_id}_{agent_id}_{int(time.time())}"
+
+    logging.debug("trying to get all memories with params: %s", {
+        "user_id": user_id,
+        "agent_id": agent_id,
+        "run_id": run_id
+    })
     
     try:
         params = {k: v for k, v in {"user_id": user_id, "run_id": run_id, "agent_id": agent_id}.items() if v is not None}
@@ -136,9 +153,9 @@ def get_memory(memory_id: str) -> Any:
 @mcp.tool()
 def search_memories(
     query: str,
-    user_id: Optional[str] = None,
+    user_id: str,
+    agent_id: str,
     run_id: Optional[str] = None,
-    agent_id: Optional[str] = None,
     filters: Optional[Dict[str, Any]] = None,
     top_k: Optional[int] = Field(None, description="Maximum number of results to return."),
     threshold: Optional[float] = Field(None, description="Minimum similarity score for results.")
@@ -152,6 +169,9 @@ def search_memories(
         "top_k": top_k,
         "threshold": threshold
     }
+
+    logging.debug("trying to search memories with params: %s", params)
+
     params = {k: v for k, v in params.items() if v is not None}
     
     try:
@@ -167,6 +187,12 @@ def update_memory(
     metadata: Optional[Dict[str, Any]] = Field(None, description="Metadata to update.")
 ) -> Any:
     """Update an existing memory with new content."""
+
+    logging.debug("trying to update memory with params: %s", {
+        "memory_id": memory_id,
+        "text": text,
+        "metadata": metadata
+    })
     try:
         return MEMORY_INSTANCE.update(memory_id=memory_id, data=text, metadata=metadata)
     except Exception as e:
@@ -176,6 +202,7 @@ def update_memory(
 @mcp.tool()
 def get_memory_history(memory_id: str) -> Any:
     """Retrieve memory history."""
+    logging.debug("trying to get memory history with memory_id: %s", memory_id)
     try:
         return MEMORY_INSTANCE.history(memory_id=memory_id)
     except Exception as e:
@@ -185,6 +212,7 @@ def get_memory_history(memory_id: str) -> Any:
 @mcp.tool()
 def delete_memory(memory_id: str) -> str:
     """Delete a specific memory by ID."""
+    logging.debug("trying to delete memory with memory_id: %s", memory_id)
     try:
         MEMORY_INSTANCE.delete(memory_id=memory_id)
         return "Memory deleted successfully"
@@ -199,6 +227,11 @@ def delete_all_memories(
     run_id: Optional[str] = None,
 ) -> str:
     """Delete all memories for a given identifier."""
+    logging.debug("trying to delete all memories with params: %s", {
+        "user_id": user_id,
+        "agent_id": agent_id,        
+        "run_id": run_id
+    })
     try:
         params = {k: v for k, v in {"user_id": user_id, "run_id": run_id, "agent_id": agent_id}.items() if v is not None}
         MEMORY_INSTANCE.delete_all(**params)
@@ -210,6 +243,7 @@ def delete_all_memories(
 @mcp.tool()
 def reset_memory() -> str:
     """Completely reset stored memories."""
+    logging.debug("trying to reset all memories")
     try:
         MEMORY_INSTANCE.reset()
         return "All memories reset"

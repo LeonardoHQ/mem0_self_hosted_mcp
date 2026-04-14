@@ -1,0 +1,16 @@
+[project]
+name = "mem0-self-hosted-mcp"
+version = "0.1.0"
+description = "Self-hosted version of the Mem0 Memory Control Plane (MCP) using OpenRouter as the main LLM provider and Neo4j or Memgraph as the graph database."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.135.3",
+    "langchain-neo4j>=0.9.0",
+    "mem0ai>=1.0.11",
+    "psycopg2-binary>=2.9.11",
+    "pydantic>=2.13.0",
+    "python-dotenv>=1.2.2",
+    "rank-bm25>=0.2.2",
+    "uvicorn>=0.44.0",
+]

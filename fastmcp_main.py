@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -75,8 +76,8 @@ def configure_mem0(config: Dict[str, Any]) -> str:
 @mcp.tool()
 def add_memory(
     messages: List[Message],
-    user_id: Optional[str] = None,
-    agent_id: Optional[str] = None,
+    user_id: str,
+    agent_id: str,
     run_id: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
     infer: Optional[bool] = Field(True, description="Whether to extract facts from messages. Defaults to True."),
@@ -84,8 +85,8 @@ def add_memory(
     prompt: Optional[str] = Field(None, description="Custom prompt to use for fact extraction.")
 ) -> Any:
     """Store new memories."""
-    if not any([user_id, agent_id, run_id]):
-        raise ValueError("At least one identifier (user_id, agent_id, run_id) is required.")
+    if run_id is None:
+        run_id = f"run_{user_id}_{agent_id}_{int(time.time())}"
 
     params = {
         "user_id": user_id,
@@ -108,13 +109,13 @@ def add_memory(
 
 @mcp.tool()
 def get_all_memories(
-    user_id: Optional[str] = None,
+    user_id: str,
+    agent_id: str,
     run_id: Optional[str] = None,
-    agent_id: Optional[str] = None,
 ) -> Any:
     """Retrieve stored memories."""
-    if not any([user_id, run_id, agent_id]):
-        raise ValueError("At least one identifier is required.")
+    if run_id is None:
+        run_id = f"run_{user_id}_{agent_id}_{int(time.time())}"
     
     try:
         params = {k: v for k, v in {"user_id": user_id, "run_id": run_id, "agent_id": agent_id}.items() if v is not None}
@@ -193,13 +194,11 @@ def delete_memory(memory_id: str) -> str:
 
 @mcp.tool()
 def delete_all_memories(
-    user_id: Optional[str] = None,
+    user_id: str,
+    agent_id: str,
     run_id: Optional[str] = None,
-    agent_id: Optional[str] = None,
 ) -> str:
     """Delete all memories for a given identifier."""
-    if not any([user_id, run_id, agent_id]):
-        raise ValueError("At least one identifier is required.")
     try:
         params = {k: v for k, v in {"user_id": user_id, "run_id": run_id, "agent_id": agent_id}.items() if v is not None}
         MEMORY_INSTANCE.delete_all(**params)

@@ -209,53 +209,53 @@ def get_memory_history(memory_id: str) -> Any:
         logging.exception("Error in memory_history:")
         raise ValueError(f"Failed to get memory history: {str(e)}")
 
-@mcp.tool()
-def delete_memory(memory_id: str) -> str:
-    """Delete a specific memory by ID."""
-    logging.debug("trying to delete memory with memory_id: %s", memory_id)
-    try:
-        MEMORY_INSTANCE.delete(memory_id=memory_id)
-        return "Memory deleted successfully"
-    except Exception as e:
-        logging.exception("Error in delete_memory:")
-        raise ValueError(f"Failed to delete memory: {str(e)}")
+# @mcp.tool()
+# def delete_memory(memory_id: str) -> str:
+#     """Delete a specific memory by ID."""
+#     logging.debug("trying to delete memory with memory_id: %s", memory_id)
+#     try:
+#         MEMORY_INSTANCE.delete(memory_id=memory_id)
+#         return "Memory deleted successfully"
+#     except Exception as e:
+#         logging.exception("Error in delete_memory:")
+#         raise ValueError(f"Failed to delete memory: {str(e)}")
 
-@mcp.tool()
-def delete_all_memories(
-    user_id: str,
-    agent_id: str,
-    run_id: Optional[str] = None,
-) -> str:
-    """Delete all memories for a given identifier."""
-    logging.debug("trying to delete all memories with params: %s", {
-        "user_id": user_id,
-        "agent_id": agent_id,        
-        "run_id": run_id
-    })
-    try:
-        params = {k: v for k, v in {"user_id": user_id, "run_id": run_id, "agent_id": agent_id}.items() if v is not None}
-        MEMORY_INSTANCE.delete_all(**params)
-        return "All relevant memories deleted"
-    except Exception as e:
-        logging.exception("Error in delete_all_memories:")
-        raise ValueError(f"Failed to delete all memories: {str(e)}")
+# @mcp.tool()
+# def delete_all_memories(
+#     user_id: str,
+#     agent_id: str,
+#     run_id: Optional[str] = None,
+# ) -> str:
+#     """Delete all memories for a given identifier."""
+#     logging.debug("trying to delete all memories with params: %s", {
+#         "user_id": user_id,
+#         "agent_id": agent_id,        
+#         "run_id": run_id
+#     })
+#     try:
+#         params = {k: v for k, v in {"user_id": user_id, "run_id": run_id, "agent_id": agent_id}.items() if v is not None}
+#         MEMORY_INSTANCE.delete_all(**params)
+#         return "All relevant memories deleted"
+#     except Exception as e:
+#         logging.exception("Error in delete_all_memories:")
+#         raise ValueError(f"Failed to delete all memories: {str(e)}")
 
-@mcp.tool()
-def reset_memory() -> str:
-    """Completely reset stored memories."""
-    logging.debug("trying to reset all memories")
-    try:
-        MEMORY_INSTANCE.reset()
-        return "All memories reset"
-    except Exception as e:
-        logging.exception("Error in reset_memory:")
-        raise ValueError(f"Failed to reset memory: {str(e)}")
+# @mcp.tool()
+# def reset_memory() -> str:
+#     """Completely reset stored memories."""
+#     logging.debug("trying to reset all memories")
+#     try:
+#         MEMORY_INSTANCE.reset()
+#         return "All memories reset"
+#     except Exception as e:
+#         logging.exception("Error in reset_memory:")
+#         raise ValueError(f"Failed to reset memory: {str(e)}")
 
-if __name__ == "__main__":
-    # Run the server over Streamable HTTP transport
-    # You can customize the host, port, and path as needed
-    mcp.run(
-        transport="http", 
-        host="0.0.0.0", 
-        port=8000
-    )
+# if __name__ == "__main__":
+#     # Run the server over Streamable HTTP transport
+#     # You can customize the host, port, and path as needed
+#     mcp.run(
+#         transport="http", 
+#         host="0.0.0.0", 
+#         port=8000
+#     )

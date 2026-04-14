@@ -1,6 +1,13 @@
-# Mem0 REST API Server
+# Mem0 Self-Hosted MCP Server
 
-Mem0 provides a REST API server (written using FastAPI). Users can perform all operations through REST endpoints. The API also includes OpenAPI documentation, accessible at `/docs` when the server is running.
+This project is a self-hosted implementation of the Mem0 REST API server, based on the [mem0ai/mem0](https://github.com/mem0ai/mem0) repository, specifically the server folder.
+
+## What This Project Is
+
+This is a modified version of the Mem0 server that:
+- Works with OpenRoute instead of the original embedding/LLM providers
+- Uses updated library versions compared to the original
+- Provides the same REST API functionality for memory management
 
 ## Features
 
@@ -12,10 +19,25 @@ Mem0 provides a REST API server (written using FastAPI). Users can perform all o
 - **Reset memories:** Reset all memories for a user, agent, or run.
 - **OpenAPI Documentation:** Accessible via `/docs` endpoint.
 
-## Starting the server
-Do it using the `docker-compose.yml` file by executing
+## Starting the Server
+
+Do it using the `docker-compose.yml` file by executing:
 
 ```bash
 docker compose up -d
 ```
+
 Make sure you don't have other services running on the same ports declared on the `docker-compose.yml` file.
+
+## Key Differences from Original mem0ai/mem0 Server
+
+1. **OpenRoute Integration:** This implementation is configured to work with OpenRoute for embeddings and LLM operations instead of the default providers used in the original.
+2. **Updated Libraries:** All Python dependencies have been updated to their latest compatible versions.
+3. **Self-Hosted Focus:** Optimized for self-hosted deployment with MCP (Model Context Protocol) support.
+
+## Available Entry Points
+
+- `fastapi_main.py` - Standard FastAPI server implementation
+- `fastmcp_main.py` - FastAPI server with MCP integration
+
+Both servers provide the same Mem0 REST API endpoints.

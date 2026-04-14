@@ -251,11 +251,11 @@ def get_memory_history(memory_id: str) -> Any:
 #         logging.exception("Error in reset_memory:")
 #         raise ValueError(f"Failed to reset memory: {str(e)}")
 
-# if __name__ == "__main__":
-#     # Run the server over Streamable HTTP transport
-#     # You can customize the host, port, and path as needed
-#     mcp.run(
-#         transport="http", 
-#         host="0.0.0.0", 
-#         port=8000
-#     )
+if __name__ == "__main__":
+    # Run the server over Streamable HTTP transport
+    # You can customize the host, port, and path as needed
+    mcp.run(
+        transport="http", 
+        host="0.0.0.0", 
+        port=8000
+    )

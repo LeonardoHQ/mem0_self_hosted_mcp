@@ -130,7 +130,6 @@ def add_memory(
         "user_id": SHARED_USER_ID,
         "agent_id": AGENT_ID,
         "metadata": {"categories": categories, "repo": "detect_from_context", "created_at": datetime.now().isoformat()},
-        "categories": categories,
         "infer": True,
     }
     params["prompt"] = custom_extraction_prompt

@@ -7,9 +7,8 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import APIKeyHeader
-from pydantic import BaseModel, Field
-
 from mem0 import Memory
+from pydantic import BaseModel, Field
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -72,8 +71,22 @@ DEFAULT_CONFIG = {
         "provider": "neo4j",
         "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD},
     },
-    "llm": {"provider": "openai", "config": {"api_key": OPENROUTER_API_KEY, "model": OPENROUTER_LLM_MODEL, "openai_base_url": "https://openrouter.ai/api/v1"}},
-    "embedder": {"provider": "openai", "config": {"api_key": OPENROUTER_API_KEY, "model": OPENROUTER_EMBEDDING_MODEL,  "openai_base_url": "https://openrouter.ai/api/v1"}},
+    "llm": {
+        "provider": "openai",
+        "config": {
+            "api_key": OPENROUTER_API_KEY,
+            "model": OPENROUTER_LLM_MODEL,
+            "openai_base_url": "https://openrouter.ai/api/v1",
+        },
+    },
+    "embedder": {
+        "provider": "openai",
+        "config": {
+            "api_key": OPENROUTER_API_KEY,
+            "model": OPENROUTER_EMBEDDING_MODEL,
+            "openai_base_url": "https://openrouter.ai/api/v1",
+        },
+    },
     "history_db_path": HISTORY_DB_PATH,
 }
 
@@ -82,9 +95,7 @@ MEMORY_INSTANCE = Memory.from_config(DEFAULT_CONFIG)
 
 app = FastAPI(
     title="Mem0 REST APIs",
-    description=(
-        "A REST API for managing and searching memories for your AI Agents and Apps.\n\n"
-    ),
+    description=("A REST API for managing and searching memories for your AI Agents and Apps.\n\n"),
     version="0.0.1",
 )
 

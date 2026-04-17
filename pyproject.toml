@@ -9,9 +9,89 @@ dependencies = [
     "fastmcp>=3.2.4",
     "langchain-neo4j>=0.9.0",
     "mem0ai>=1.0.11",
+    
     "psycopg2-binary>=2.9.11",
     "pydantic>=2.13.0",
     "python-dotenv>=1.2.2",
     "rank-bm25>=0.2.2",
     "uvicorn>=0.44.0",
 ]
+
+[dependency-groups]
+lint = [
+    "isort>=8.0.1",
+    "pre-commit>=4.5.1",
+    "ruff>=0.15.11",
+    "ty>=0.0.31",
+]
+
+[tool.isort]
+profile = "black"
+line_length = 120
+# src_paths = ["app"]
+
+
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".idea",
+]
+
+# Like Black, use a line length of 120 characters.
+line-length = 120
+indent-width = 4
+target-version = "py313"
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+select = ["C","E","F","W","B"]
+ignore = ["E203", "E50", "E712", "B008", "E721", "B904"]
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
+
+[tool.ruff.lint.mccabe]
+# Flag errors (`C901`) whenever the complexity level exceeds 15.
+max-complexity = 25
+
+[tool.hatch.envs.default.scripts]
+setup = "pre-commit install"

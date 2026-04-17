@@ -1,17 +1,22 @@
 import logging
 import os
-import time
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, Literal, Optional
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
-from mem0 import Memory
 from fastmcp import FastMCP
+from mem0 import Memory
+from pydantic import BaseModel, Field
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Load environment variables
 load_dotenv()
+
+# This is the backend team's shared memory instance so it's hardcoded.
+SHARED_USER_ID = "backend_team_shared"
+AGENT_ID = "mcp_engineering_companion"
+
 
 POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "postgres")
 POSTGRES_PORT = os.environ.get("POSTGRES_PORT", "5432")
@@ -36,6 +41,26 @@ HISTORY_DB_PATH = os.environ.get("HISTORY_DB_PATH", "/app/history/history.db")
 
 DEFAULT_CONFIG = {
     "version": "v1.1",
+    "custom_instructions": """
+        You are a senior backend architect for a team of 4. Extract technical facts using the following strict taxonomy:
+
+        1. 'db': Focus on MySQL-specific insights. This includes indexing strategies, complex query optimizations, migration status, and database-level constraints.
+        2. 'auth': Centralize knowledge regarding the dedicated Auth Service. Record details about JWT structures, specific Role-Based Access Control (RBAC) permissions, and how other services should validate users.
+        3. 'deployment': Since deployment is manual on Linux VPS, record specific environment variables, systemd service configurations, Nginx proxy rules, and manual steps required to ship a specific service.
+        4. 'schemas': Focus on FastAPI/Pydantic definitions. Record facts about Pydantic model validation rules, expected input/output JSON structures, and breaking changes in API contracts.
+        5. 'business-logic': Capture the 'Domain Knowledge'—why a calculation is done a certain way, edge cases in the code, or legacy logic that isn't immediately obvious from reading the code.
+        6. 'cross-service': Document the 'connective tissue' between services. This includes internal API endpoints, timeout settings between services, and how Service A depends on Service B's state.
+
+        EXTRACTION GUIDELINES:
+        - If a developer explains a fix for a manual deployment error, tag it as 'deployment'.
+        - If a developer mentions a specific Pydantic field constraint (e.g., "this must be a positive int"), tag it as 'schemas'.
+        - Ignore all non-technical chatter. If no facts fit these categories, do not create a memory.
+
+        DEDUPLICATION RULES:
+        - If a fact is already present in the conversation history as something previously 'learned', DO NOT extract it again.
+        - Only extract 'New' information or 'Corrections' to previous facts.
+        - If the user is just confirming what you just said, ignore it.
+    """,
     "vector_store": {
         "provider": "pgvector",
         "config": {
@@ -51,8 +76,22 @@ DEFAULT_CONFIG = {
         "provider": "neo4j",
         "config": {"url": NEO4J_URI, "username": NEO4J_USERNAME, "password": NEO4J_PASSWORD},
     },
-    "llm": {"provider": "openai", "config": {"api_key": OPENROUTER_API_KEY, "model": OPENROUTER_LLM_MODEL, "openai_base_url": "https://openrouter.ai/api/v1"}},
-    "embedder": {"provider": "openai", "config": {"api_key": OPENROUTER_API_KEY, "model": OPENROUTER_EMBEDDING_MODEL,  "openai_base_url": "https://openrouter.ai/api/v1"}},
+    "llm": {
+        "provider": "openai",
+        "config": {
+            "api_key": OPENROUTER_API_KEY,
+            "model": OPENROUTER_LLM_MODEL,
+            "openai_base_url": "https://openrouter.ai/api/v1",
+        },
+    },
+    "embedder": {
+        "provider": "openai",
+        "config": {
+            "api_key": OPENROUTER_API_KEY,
+            "model": OPENROUTER_EMBEDDING_MODEL,
+            "openai_base_url": "https://openrouter.ai/api/v1",
+        },
+    },
     "history_db_path": HISTORY_DB_PATH,
 }
 
@@ -62,55 +101,40 @@ MEMORY_INSTANCE = Memory.from_config(DEFAULT_CONFIG)
 # Initialize FastMCP Server
 mcp = FastMCP("Mem0 Server")
 
+
 class Message(BaseModel):
     role: str = Field(..., description="Role of the message (user or assistant).")
     content: str = Field(..., description="Message content.")
 
-# @mcp.tool()
-# def configure_mem0(config: Dict[str, Any]) -> str:
-#     """Set memory configuration."""
-#     global MEMORY_INSTANCE
-#     MEMORY_INSTANCE = Memory.from_config(config)
-#     return "Configuration set successfully"
 
 @mcp.tool()
 def add_memory(
-    messages: List[Message],
-    user_id: str,
-    agent_id: str,
-    run_id: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None,
-    infer: Optional[bool] = Field(True, description="Whether to extract facts from messages. Defaults to True."),
-    memory_type: Optional[str] = Field(None, description="Type of memory to store (e.g. 'core')."),
-    prompt: Optional[str] = Field(None, description="Custom prompt to use for fact extraction.")
+    messages: list[Message],
+    categories: list[
+        Literal["db", "auth", "deployment", "schemas", "endpoint-output", "business-logic", "cross-service"]
+    ] = Field(..., description="Topic category for the memory."),
 ) -> Any:
-    """Store new memories."""
-    logging.debug("trying to add memory with params: %s", {
-        "user_id": user_id,
-        "agent_id": agent_id,
-        "run_id": run_id,
-        "metadata": metadata,
-        "infer": infer,
-        "memory_type": memory_type,
-        "prompt": prompt,
-        "messages": [m.model_dump() for m in messages]    
-    })
+    """
+    Store technical insights, architectural decisions, and 'gotchas'.
+    Use this when a non-obvious fact about the codebase is discovered.
+    """
 
-    if run_id is None:
-        run_id = f"run_{user_id}_{agent_id}_{int(time.time())}"
+    # We do not store unnecesary things.
+    custom_extraction_prompt = f"""
+    Extract only technical backend facts.
+    Assigned Categories for this entry: {categories}
+    If the conversation is just 'thanks' or 'ok', extract NOTHING.
+    """
 
     params = {
-        "user_id": user_id,
-        "agent_id": agent_id,
-        "run_id": run_id,
-        "metadata": metadata,
-        "infer": infer,
-        "memory_type": memory_type,
-        "prompt": prompt
+        "user_id": SHARED_USER_ID,
+        "agent_id": AGENT_ID,
+        "metadata": {"categories": categories, "repo": "detect_from_context", "created_at": datetime.now().isoformat()},
+        "categories": categories,
+        "infer": True,
     }
-    # Remove None values
-    params = {k: v for k, v in params.items() if v is not None}
-    
+    params["prompt"] = custom_extraction_prompt
+
     try:
         dict_messages = [m.model_dump() for m in messages]
         return MEMORY_INSTANCE.add(messages=dict_messages, **params)
@@ -118,107 +142,95 @@ def add_memory(
         logging.exception("Error in add_memory:")
         raise ValueError(f"Failed to add memory: {str(e)}")
 
-@mcp.tool()
-def get_all_memories(
-    user_id: str,
-    agent_id: str,
-    run_id: Optional[str] = None,
-) -> Any:
-    """Retrieve stored memories."""
-    if run_id is None:
-        run_id = f"run_{user_id}_{agent_id}_{int(time.time())}"
-
-    logging.debug("trying to get all memories with params: %s", {
-        "user_id": user_id,
-        "agent_id": agent_id,
-        "run_id": run_id
-    })
-    
-    try:
-        params = {k: v for k, v in {"user_id": user_id, "run_id": run_id, "agent_id": agent_id}.items() if v is not None}
-        return MEMORY_INSTANCE.get_all(**params)
-    except Exception as e:
-        logging.exception("Error in get_all_memories:")
-        raise ValueError(f"Failed to get memories: {str(e)}")
 
 @mcp.tool()
-def get_memory(memory_id: str) -> Any:
-    """Retrieve a specific memory by ID."""
+def search_memory(
+    query: str = Field(
+        ..., description="The natural language search query (e.g., 'MySQL version' or 'how to deploy')."
+    ),
+    categories: Optional[
+        list[Literal["db", "auth", "deployment", "schemas", "endpoint-output", "business-logic", "cross-service"]]
+    ] = Field(None, description="Optional categories to narrow down the search."),
+    limit: int = Field(5, description="Number of memories to return. Defaults to 5."),
+) -> str:
+    """
+    Search the backend team's shared memory.
+    Use this to find existing 'gotchas', architectural decisions, or deployment steps.
+    """
+
+    # Matches the hardcoded ID from your add_memory tool
+    SHARED_USER_ID = "backend_team_shared"
+
+    # Build filters based on metadata
+    search_filters: dict[str, Any] = {"user_id": SHARED_USER_ID}
+
+    # If the agent provides categories, we apply them to the metadata filter
+    if categories:
+        # Note: In Mem0 OSS, this matches the 'categories' key we put in metadata
+        search_filters["metadata.categories"] = {"any": categories}
+
     try:
-        return MEMORY_INSTANCE.get(memory_id)
+        results = MEMORY_INSTANCE.search(query=query, filters=search_filters, limit=limit)
+
+        if not results or not results.get("results"):
+            return f"No relevant memories found for: '{query}'"
+
+        # Format the output so the Agent can read it easily
+        formatted_results = []
+        for res in results["results"]:
+            mem_text = res["memory"]
+            mem_id = res["id"]
+            # Extract metadata for context (who added it, etc.)
+            meta = res.get("metadata", {})
+            cat_list = meta.get("categories", ["uncategorized"])
+            dev = meta.get("added_by", "Unknown Dev")
+
+            formatted_results.append(f"- [{', '.join(cat_list)}] {mem_text} (ID: {mem_id}, Added by: {dev})")
+
+        return "\n".join(formatted_results)
+
     except Exception as e:
-        logging.exception("Error in get_memory:")
-        raise ValueError(f"Failed to get memory: {str(e)}")
+        logging.exception("Error in search_memory:")
+        return f"Error performing search: {str(e)}"
 
-@mcp.tool()
-def search_memories(
-    query: str,
-    user_id: str,
-    agent_id: str,
-    run_id: Optional[str] = None,
-    filters: Optional[Dict[str, Any]] = None,
-    top_k: Optional[int] = Field(None, description="Maximum number of results to return."),
-    threshold: Optional[float] = Field(None, description="Minimum similarity score for results.")
-) -> Any:
-    """Search for memories based on a query."""
-    params = {
-        "user_id": user_id,
-        "run_id": run_id,
-        "agent_id": agent_id,
-        "filters": filters,
-        "top_k": top_k,
-        "threshold": threshold
-    }
-
-    logging.debug("trying to search memories with params: %s", params)
-
-    params = {k: v for k, v in params.items() if v is not None}
-    
-    try:
-        return MEMORY_INSTANCE.search(query=query, **params)
-    except Exception as e:
-        logging.exception("Error in search_memories:")
-        raise ValueError(f"Failed to search memories: {str(e)}")
 
 @mcp.tool()
 def update_memory(
-    memory_id: str, 
-    text: str = Field(..., description="New content to update the memory with."),
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Metadata to update.")
-) -> Any:
-    """Update an existing memory with new content."""
+    memory_id: str = Field(..., description="The unique ID of the memory to update."),
+    text: str = Field(..., description="The new, updated technical fact or insight."),
+    categories: Optional[
+        list[Literal["db", "auth", "deployment", "schemas", "endpoint-output", "business-logic", "cross-service"]]
+    ] = Field(None, description="Updated categories for this memory if they have changed."),
+    metadata: Optional[Dict[str, Any]] = None,
+) -> str:
+    """
+    Update an existing technical memory with new information.
+    Use this when a 'gotcha' changes, a VPS config is updated, or a Pydantic schema is modified.
+    """
 
-    logging.debug("trying to update memory with params: %s", {
-        "memory_id": memory_id,
-        "text": text,
-        "metadata": metadata
-    })
+    # Pre-build the update payload
+    update_data: dict[str, Any] = {"data": text}
+
+    # Maintain metadata consistency
+    final_metadata = metadata or {}
+    if categories:
+        final_metadata["categories"] = categories
+
+    # Add a 'last_updated' flag so devs know the info is fresh
+    final_metadata["last_updated_at"] = datetime.now().isoformat()
+
+    if final_metadata:
+        update_data["metadata"] = final_metadata
+
     try:
-        return MEMORY_INSTANCE.update(memory_id=memory_id, data=text, metadata=metadata)
-    except Exception as e:
-        logging.exception("Error in update_memory:")
-        raise ValueError(f"Failed to update memory: {str(e)}")
+        # Mem0 OSS update method
+        MEMORY_INSTANCE.update(memory_id=memory_id, **update_data)
+        return f"Successfully updated memory {memory_id}."
 
-@mcp.tool()
-def get_memory_history(memory_id: str) -> Any:
-    """Retrieve memory history."""
-    logging.debug("trying to get memory history with memory_id: %s", memory_id)
-    try:
-        return MEMORY_INSTANCE.history(memory_id=memory_id)
     except Exception as e:
-        logging.exception("Error in memory_history:")
-        raise ValueError(f"Failed to get memory history: {str(e)}")
+        logging.exception(f"Error updating memory {memory_id}:")
+        return f"Failed to update memory: {str(e)}"
 
-# @mcp.tool()
-# def delete_memory(memory_id: str) -> str:
-#     """Delete a specific memory by ID."""
-#     logging.debug("trying to delete memory with memory_id: %s", memory_id)
-#     try:
-#         MEMORY_INSTANCE.delete(memory_id=memory_id)
-#         return "Memory deleted successfully"
-#     except Exception as e:
-#         logging.exception("Error in delete_memory:")
-#         raise ValueError(f"Failed to delete memory: {str(e)}")
 
 # @mcp.tool()
 # def delete_all_memories(
@@ -229,7 +241,7 @@ def get_memory_history(memory_id: str) -> Any:
 #     """Delete all memories for a given identifier."""
 #     logging.debug("trying to delete all memories with params: %s", {
 #         "user_id": user_id,
-#         "agent_id": agent_id,        
+#         "agent_id": agent_id,
 #         "run_id": run_id
 #     })
 #     try:
@@ -252,10 +264,4 @@ def get_memory_history(memory_id: str) -> Any:
 #         raise ValueError(f"Failed to reset memory: {str(e)}")
 
 if __name__ == "__main__":
-    # Run the server over Streamable HTTP transport
-    # You can customize the host, port, and path as needed
-    mcp.run(
-        transport="http", 
-        host="0.0.0.0", 
-        port=8000
-    )
+    mcp.run(transport="http", host="0.0.0.0", port=8000)

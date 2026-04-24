@@ -8,6 +8,8 @@ from fastmcp import FastMCP
 from mem0 import Memory
 from pydantic import BaseModel, Field
 
+from categorizer import categorize_memories
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Load environment variables
@@ -39,28 +41,11 @@ OPENROUTER_EMBEDDING_MODEL = os.environ.get("OPENROUTER_EMBEDDING_MODEL", "perpl
 
 HISTORY_DB_PATH = os.environ.get("HISTORY_DB_PATH", "/app/history/history.db")
 
+CUSTOM_MEM0_INTRUCTIONS = os.environ.get("CUSTOM_MEM0_INTRUCTIONS", "")
+
 DEFAULT_CONFIG = {
     "version": "v1.1",
-    "custom_instructions": """
-        You are a senior backend architect for a team of 4. Extract technical facts using the following strict taxonomy:
-
-        1. 'db': Focus on MySQL-specific insights. This includes indexing strategies, complex query optimizations, migration status, and database-level constraints.
-        2. 'auth': Centralize knowledge regarding the dedicated Auth Service. Record details about JWT structures, specific Role-Based Access Control (RBAC) permissions, and how other services should validate users.
-        3. 'deployment': Since deployment is manual on Linux VPS, record specific environment variables, systemd service configurations, Nginx proxy rules, and manual steps required to ship a specific service.
-        4. 'schemas': Focus on FastAPI/Pydantic definitions. Record facts about Pydantic model validation rules, expected input/output JSON structures, and breaking changes in API contracts.
-        5. 'business-logic': Capture the 'Domain Knowledge'—why a calculation is done a certain way, edge cases in the code, or legacy logic that isn't immediately obvious from reading the code.
-        6. 'cross-service': Document the 'connective tissue' between services. This includes internal API endpoints, timeout settings between services, and how Service A depends on Service B's state.
-
-        EXTRACTION GUIDELINES:
-        - If a developer explains a fix for a manual deployment error, tag it as 'deployment'.
-        - If a developer mentions a specific Pydantic field constraint (e.g., "this must be a positive int"), tag it as 'schemas'.
-        - Ignore all non-technical chatter. If no facts fit these categories, do not create a memory.
-
-        DEDUPLICATION RULES:
-        - If a fact is already present in the conversation history as something previously 'learned', DO NOT extract it again.
-        - Only extract 'New' information or 'Corrections' to previous facts.
-        - If the user is just confirming what you just said, ignore it.
-    """,
+    "custom_instructions": CUSTOM_MEM0_INTRUCTIONS,
     "vector_store": {
         "provider": "pgvector",
         "config": {
@@ -109,33 +94,31 @@ class Message(BaseModel):
 
 @mcp.tool()
 def add_memory(
-    messages: list[Message],
-    categories: list[
-        Literal["db", "auth", "deployment", "schemas", "endpoint-output", "business-logic", "cross-service"]
-    ] = Field(..., description="Topic category for the memory."),
+    message: Message,
 ) -> Any:
     """
     Store technical insights, architectural decisions, and 'gotchas'.
     Use this when a non-obvious fact about the codebase is discovered.
     """
+    logging.info(f"Adding memory with content: {message.content}")
 
     # We do not store unnecesary things.
-    custom_extraction_prompt = f"""
+    custom_extraction_prompt = """
     Extract only technical backend facts.
-    Assigned Categories for this entry: {categories}
     If the conversation is just 'thanks' or 'ok', extract NOTHING.
     """
 
     params = {
         "user_id": SHARED_USER_ID,
         "agent_id": AGENT_ID,
-        "metadata": {"categories": categories, "repo": "detect_from_context", "created_at": datetime.now().isoformat()},
+        "metadata": {"memory_bucket": categorize_memories(message.content), "created_at": datetime.now().isoformat()},
         "infer": True,
     }
     params["prompt"] = custom_extraction_prompt
 
     try:
-        dict_messages = [m.model_dump() for m in messages]
+        dict_messages = [message.model_dump()]
+        logging.info("Adding memory...")
         return MEMORY_INSTANCE.add(messages=dict_messages, **params)
     except Exception as e:
         logging.exception("Error in add_memory:")
@@ -148,7 +131,7 @@ def search_memory(
         ..., description="The natural language search query (e.g., 'MySQL version' or 'how to deploy')."
     ),
     categories: Optional[
-        list[Literal["db", "auth", "deployment", "schemas", "endpoint-output", "business-logic", "cross-service"]]
+        list[Literal["DB", "AUTH", "DEPLOYMENT", "SCHEMAS", "BUSINESS_LOGIC", "CROSS_SERVICE"]]
     ] = Field(None, description="Optional categories to narrow down the search."),
     limit: int = Field(5, description="Number of memories to return. Defaults to 5."),
 ) -> str:
@@ -160,16 +143,14 @@ def search_memory(
     # Matches the hardcoded ID from your add_memory tool
     SHARED_USER_ID = "backend_team_shared"
 
-    # Build filters based on metadata
-    search_filters: dict[str, Any] = {"user_id": SHARED_USER_ID}
-
     # If the agent provides categories, we apply them to the metadata filter
-    if categories:
+    search_filters: Dict[str, Any] = {}
+    if categories is not None:
         # Note: In Mem0 OSS, this matches the 'categories' key we put in metadata
         search_filters["metadata.categories"] = {"any": categories}
 
     try:
-        results = MEMORY_INSTANCE.search(query=query, filters=search_filters, limit=limit)
+        results = MEMORY_INSTANCE.search(user_id=SHARED_USER_ID, query=query, filters=search_filters, limit=limit)
 
         if not results or not results.get("results"):
             return f"No relevant memories found for: '{query}'"
@@ -198,7 +179,7 @@ def update_memory(
     memory_id: str = Field(..., description="The unique ID of the memory to update."),
     text: str = Field(..., description="The new, updated technical fact or insight."),
     categories: Optional[
-        list[Literal["db", "auth", "deployment", "schemas", "endpoint-output", "business-logic", "cross-service"]]
+        list[Literal["DB", "AUTH", "DEPLOYMENT", "SCHEMAS", "BUSINESS_LOGIC", "CROSS_SERVICE"]]
     ] = Field(None, description="Updated categories for this memory if they have changed."),
     metadata: Optional[Dict[str, Any]] = None,
 ) -> str:

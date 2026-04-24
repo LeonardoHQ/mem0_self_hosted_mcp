@@ -9,7 +9,7 @@ dependencies = [
     "fastmcp>=3.2.4",
     "langchain-neo4j>=0.9.0",
     "mem0ai>=1.0.11",
-    
+    "openrouter>=0.9.1",
     "psycopg2-binary>=2.9.11",
     "pydantic>=2.13.0",
     "python-dotenv>=1.2.2",
